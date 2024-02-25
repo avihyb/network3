@@ -9,10 +9,10 @@ TCP_Receiver: TCP_Receiver.o
 TCP_Sender: TCP_Sender.o
 	$(CC) $(CFLAGS) $< -o $@
 
-TCP_Receiver.o: TCP_Receiver.c sockconst.h
+TCP_Receiver.o: TCP_Receiver.c 
 	$(CC) $(CFLAGS) -c $<
 
-TCP_Sender.o: TCP_Sender.c sockconst.h
+TCP_Sender.o: TCP_Sender.c 
 	$(CC) $(CFLAGS) -c $<
 
 clean:

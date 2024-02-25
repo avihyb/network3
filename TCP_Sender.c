@@ -7,6 +7,7 @@ IDs: 206769986 206768731
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <time.h>  // Include the time header for time-related functions
 
 #define FILE_SIZE 2200000 // 2.1 MB
 #define SERVER_IP_ADDRESS "127.0.0.1"
@@ -17,7 +18,7 @@ const char *filename = "random_file.txt";
 // Creates a text file with random characters (A-Z), atleast 2MB in size
 void generate_random_file(const char *filename) {
 
-    char random_char = rand() % 26 + 'A';
+    
     FILE *file = fopen(filename, "w"); // arg1: File name. arg2: write
 
     if (file == NULL) {
@@ -28,7 +29,7 @@ void generate_random_file(const char *filename) {
     srand((unsigned int)time(NULL)); // Seed the random number generator with the current time
 
     for (int i = 0; i < FILE_SIZE; ++i) {
-        char random_byte = rand() % 256;
+        char random_char = rand() % 26 + 'A';
         fprintf(file, "%c", random_char);
     }
 
@@ -52,7 +53,7 @@ char* readFile(int* size){
     fseek(file, 0L, SEEK_SET);
     fread(fileData, sizeof(char), *size, file);
     fclose(file);
-    printf("%s | Size: %d", filename, *size);
+    printf("%s | Size: %d\n", filename, *size);
     return fileData;
 }
 
@@ -104,7 +105,9 @@ int main() {
     int socketfd = -1; // INVALID SOCKET
     int filesize = 0;
 
-    printf("Client started\n");
+    printf("Sender started\n");
+
+    printf("Generating random file...\n");
 
     generate_random_file(filename);
 
@@ -115,7 +118,7 @@ int main() {
     printf("Setting up socket...\n");
     socketfd = createSocket(&serverAddress);
 
-    printf("Conncetion to %s:%d", SERVER_IP_ADDRESS, SERVER_PORT);
+    printf("Conncetion to %s:%d\n", SERVER_IP_ADDRESS, SERVER_PORT);
 
     if(connect(socketfd, (struct sockaddr*) &serverAddress, sizeof(serverAddress)) == -1){
         perror("Couldn't connect.");
@@ -124,7 +127,7 @@ int main() {
 
     printf("Connected to %s:%d\n", SERVER_IP_ADDRESS, SERVER_PORT);
 
-    printf("Sending %s to receiver...", filename);
+    printf("Sending %s to receiver...\n", filename);
 
     sendData(socketfd, &filesize, sizeof(int));
 
