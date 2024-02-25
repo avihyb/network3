@@ -16,4 +16,4 @@ TCP_Sender.o: TCP_Sender.c
 	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm -f *.o *.gch TCP_Sender TCP_Receiver
+	rm -f *.o *.gch *.txt TCP_Sender TCP_Receiver
