@@ -54,7 +54,7 @@ int createSocket(struct sockaddr_in *serverAddress, const char *receiverIP, int 
     int socketfd = -1;
 
     memset(serverAddress, 0, sizeof(*serverAddress));
-    serverAddress->sin_family = AF_INET;
+    serverAddress->sin_family = AF_INET; // IPv4
     serverAddress->sin_port = htons(receiverPort);
 
     if (inet_pton(AF_INET, receiverIP, &serverAddress->sin_addr) == -1) {
@@ -77,13 +77,11 @@ int sendData(int socketfd, void *buffer, int len) {
 
     if (sent == -1) {
         perror("Error sending the file.");
-    } else if (!sent) {
+    } else if (sent == 0) {
         printf("Receiver not available for accepting requests.\n");
     } else if (sent < len) {
         printf("Not all data sent. Only %d out of %d\n", sent, len);
-    } else {
-        printf("Bytes sent: %d\n", sent);
-    }
+    } 
 
     return sent;
 }
@@ -95,55 +93,32 @@ int main(int argc, char *argv[]) {
     int filesize = 0;
     char *ALGO = NULL;
     int chunkSize = MAX_BUFFER_SIZE;
-    int remainingBytes = filesize;
-    int offset = 0;
+    int remainingBytes;
 
     char *receiverIP = NULL;
     int receiverPort = 0;
 
     int opt;
 
-    while ((opt = getopt(argc, argv, "ip:algo:")) != -1) {
+    while ((opt = getopt(argc, argv, "i:p:a:")) != -1) {
         switch (opt) {
-        case 'i':
-            receiverIP = optarg;
-            break;
-        case 'p':
-            receiverPort = atoi(optarg);
-            break;
-        case 'algo':
-            ALGO = optarg;
-            break;
-        default:
-            fprintf(stderr, "Usage: %s -ip RECEIVER_IP -p RECEIVER_PORT -algo ALGORITHM\n", argv[0]);
-            exit(EXIT_FAILURE);
+            case 'i':
+                receiverIP = optarg;
+                break;
+            case 'p':
+                receiverPort = atoi(optarg);
+                break;
+            case 'a':
+                ALGO = optarg;
+                break;
+            default:
+                fprintf(stderr, "Usage: %s -i RECEIVER_IP -p RECEIVER_PORT -a ALGORITHM\n", argv[0]);
+                exit(EXIT_FAILURE);
         }
     }
 
     if (receiverPort == 0 || receiverIP == NULL || ALGO == NULL) {
         fprintf(stderr, "Both -ip RECEIVER_IP -p RECEIVER_PORT -algo ALGORITHM are required.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (ALGO != NULL) {
-        socketfd = socket(AF_INET, SOCK_STREAM, 0);
-
-        if (socketfd == -1) {
-            perror("Error creating socket");
-            exit(EXIT_FAILURE);
-        }
-
-        if (strcmp(ALGO, "reno") == 0) {
-            setsockopt(socketfd, IPPROTO_TCP, TCP_CONGESTION, "reno", sizeof("reno"));
-        } else if (strcmp(ALGO, "cubic") == 0) {
-            setsockopt(socketfd, IPPROTO_TCP, TCP_CONGESTION, "cubic", sizeof("cubic"));
-        } else {
-            fprintf(stderr, "Invalid algorithm. Supported algorithms: reno, cubic.\n");
-            close(socketfd);
-            exit(EXIT_FAILURE);
-        }
-    } else {
-        fprintf(stderr, "Congestion control algorithm (-algo) is required.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -173,14 +148,20 @@ int main(int argc, char *argv[]) {
 
     sendData(socketfd, &filesize, sizeof(int));
 
+    remainingBytes = filesize;
+
+    int totalSentBytes = 0;
+
     while (remainingBytes > 0) {
         int bytesToSend = (remainingBytes < chunkSize) ? remainingBytes : chunkSize;
 
-        int sentBytes = sendData(socketfd, filedata + offset, bytesToSend);
+        int sentBytes = sendData(socketfd, filedata + (filesize - remainingBytes), bytesToSend);
 
-        offset += sentBytes;
+        totalSentBytes += sentBytes;
         remainingBytes -= sentBytes;
     }
+
+    printf("Total Bytes sent: %d\n", totalSentBytes);
 
     // Cleanup
     close(socketfd);
