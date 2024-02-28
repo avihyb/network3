@@ -12,6 +12,12 @@
 #include <netinet/tcp.h>
 #include <string.h>
 #include <errno.h>
+#include <getopt.h>
+#include <unistd.h>
+#include <netinet/tcp.h>
+#ifndef TCP_CUBIC
+#define TCP_CUBIC 10
+#endif
 
 #define MAX_BUFFER_SIZE 1024
 
@@ -149,21 +155,15 @@ int handleSenderResponse(int clientSocket)
     }
     else
     {
-        printf("Received unknown response from sender: %s\n", response);
+       // printf("Received unknown response from sender: %s\n", response);
         return 0; // Exit the loop
     }
 }
 
 int main(int argc, char *argv[])
 {
-    if (argc != 5 || strcmp(argv[1], "-p") != 0 || strcmp(argv[3], "-algo") != 0)
-    {
-        printf("Usage: %s -p <port> -algo <ALGO>\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-
-    int port = atoi(argv[2]);
-    struct sockaddr_in serverAddress, clientAddress;
+    
+      struct sockaddr_in serverAddress, clientAddress;
     socklen_t clientAddressLen;
     char clientAddr[INET_ADDRSTRLEN];
 
@@ -177,11 +177,32 @@ int main(int argc, char *argv[])
     double totalElapsedTime = 0;
     double totalBandwidth = 0;
     int totalFilesReceived = 0;
+    int receiverPort = 0;
+    char *ALGO = NULL;
+    
 
-    printf("Server setting up...\n");
-    socketfd = createSocket(&serverAddress, port);
+    for (int i = 1; i < argc; i++) {  // Skip argv[0] which is the program name
+        if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
+            receiverPort = atoi(argv[i + 1]);
+            i++;  // Skip the value
+        } else if (strcmp(argv[i], "-algo") == 0 && i + 1 < argc) {
+            ALGO = argv[i + 1];
+            i++;  // Skip the value
+        } else {
+            printf("Invalid argument: %s\n", argv[i]);
+            return 1;
+        }
+    }
 
-    printf("Listening on port %d.\n", port);
+    if (receiverPort == 0 || ALGO == NULL) {
+        fprintf(stderr, "Both -p RECEIVER_PORT -a ALGORITHM are required.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Receiver starting...\n");
+    socketfd = createSocket(&serverAddress, receiverPort);
+
+    printf("Listening on port %d.\n", receiverPort);
 
     memset(&clientAddress, 0, sizeof(clientAddress));
     clientAddressLen = sizeof(clientAddress);
@@ -198,32 +219,50 @@ int main(int argc, char *argv[])
 
     printf("Connected to %s:%d\n", clientAddr, clientAddress.sin_port);
 
+    // Set congestion control algorithm after the connection is accepted
+    if (strcmp(ALGO, "reno") == 0) {
+        const char *ccAlgorithm = "reno";
+        printf("CC Algorithm set to: Reno\n");
+        // Set the congestion control algorithm using setsockopt
+        if (setsockopt(clientSocket, IPPROTO_TCP, TCP_CONGESTION, ccAlgorithm, strlen(ccAlgorithm) + 1) == -1) {
+            perror("Error setting TCP congestion control algorithm");
+            exit(EXIT_FAILURE);
+        }
+    } else if (strcmp(ALGO, "cubic") == 0) {
+        const char *ccAlgorithm = "cubic";
+        printf("CC Algorithm set to: Cubic\n");
+        // Set the congestion control algorithm using setsockopt
+        if (setsockopt(clientSocket, IPPROTO_TCP, TCP_CONGESTION, ccAlgorithm, strlen(ccAlgorithm) + 1) == -1) {
+            perror("Error setting TCP congestion control algorithm");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        printf("Unsupported CC algorithm: %s\n", ALGO);
+        exit(EXIT_FAILURE);
+    }
+
     while (1)
     {
         gettimeofday(&startTime, NULL);
 
         getData(clientSocket, &filesize, sizeof(int));
 
-        // Assuming you have a function receiveFile to handle receiving the file
-        // This is a placeholder and you need to implement it
         receiveFile(clientSocket, filesize);
 
         gettimeofday(&endTime, NULL);
         elapsedTime = (endTime.tv_sec - startTime.tv_sec) * 1000.0; // Convert to milliseconds
         elapsedTime += (endTime.tv_usec - startTime.tv_usec) / 1000.0;
 
-        printf("Time taken to receive file: %.2f milliseconds\n", elapsedTime);
+        //printf("Time taken to receive file: %.2f milliseconds\n", elapsedTime);
 
         // Calculate and print bandwidth
         double bandwidth = (filesize / 1024.0) / (elapsedTime / 1000.0); // in KB/s
-        printf("Bandwidth: %.2f KB/s\n", bandwidth);
+        //printf("Bandwidth: %.2f KB/s\n", bandwidth);
 
         totalElapsedTime += elapsedTime;
         totalBandwidth += bandwidth;
         totalFilesReceived++;
 
-        // Assuming you have a function handleSenderResponse to handle sender responses
-        // This is a placeholder and you need to implement it
         if (!handleSenderResponse(clientSocket))
         {
             break;
@@ -233,18 +272,20 @@ int main(int argc, char *argv[])
     // Calculate and print average time and total average bandwidth
     double averageTime = totalElapsedTime / totalFilesReceived;
     double averageBandwidth = totalBandwidth / totalFilesReceived;
-
+    printf("-----------------------------\n");
+    printf("       * Statistics *        \n");
     printf("Total Files Received: %d\n", totalFilesReceived);
     printf("Average Time: %.2f milliseconds\n", averageTime);
     printf("Total Average Bandwidth: %.2f KB/s\n", averageBandwidth);
-
-    printf("Closing connection with {%s:%d}.\n", clientAddr, clientAddress.sin_port);
+    printf("CC Algo: %s\n", ALGO);
+    printf("-----------------------------\n");
+    printf("Closing connection with %s:%d.\n", clientAddr, clientAddress.sin_port);
     close(clientSocket);
 
     printf("Closing socket...\n");
     close(socketfd);
 
-    printf("Receiver exit.\n");
+    printf("Receiver end.\n");
 
     return 0;
 }

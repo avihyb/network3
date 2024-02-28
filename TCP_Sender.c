@@ -46,7 +46,7 @@ char *readFile(int *size) {
     fseek(file, 0L, SEEK_SET);
     fread(fileData, sizeof(char), *size, file);
     fclose(file);
-    printf("%s | Size: %d\n", filename, *size);
+    printf("%s | Size: %d Bytes\n", filename, *size);
     return fileData;
 }
 
@@ -86,6 +86,15 @@ int sendData(int socketfd, void *buffer, int len) {
     return sent;
 }
 
+void setCongestionControl(int socketfd, const char *ALGO) {
+ if (setsockopt(socketfd, IPPROTO_TCP, TCP_CONGESTION, ALGO, strlen(ALGO)) == -1) {
+        perror("Error setting congestion control algorithm");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("CC Algorithm set to: %s\n", ALGO);
+}
+
 int main(int argc, char *argv[]) {
     struct sockaddr_in serverAddress;
     char *filedata = NULL;
@@ -98,30 +107,31 @@ int main(int argc, char *argv[]) {
     char *receiverIP = NULL;
     int receiverPort = 0;
 
-    int opt;
 
-    while ((opt = getopt(argc, argv, "i:p:a:")) != -1) {
-        switch (opt) {
-            case 'i':
-                receiverIP = optarg;
-                break;
-            case 'p':
-                receiverPort = atoi(optarg);
-                break;
-            case 'a':
-                ALGO = optarg;
-                break;
-            default:
-                fprintf(stderr, "Usage: %s -i RECEIVER_IP -p RECEIVER_PORT -a ALGORITHM\n", argv[0]);
-                exit(EXIT_FAILURE);
+
+
+    for (int i = 1; i < argc; i++) {  // Skip argv[0] which is the program name
+        if (strcmp(argv[i], "-ip") == 0 && i + 1 < argc) {
+            receiverIP = argv[i + 1];
+            i++;  // Skip the value
+        } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
+            receiverPort = atoi(argv[i + 1]);
+            i++;  // Skip the value
+        } else if (strcmp(argv[i], "-algo") == 0 && i + 1 < argc) {
+            ALGO = argv[i + 1];
+            i++;  // Skip the value
+        } else {
+            printf("Invalid argument: %s\n", argv[i]);
+            return 1;
         }
     }
 
+
     if (receiverPort == 0 || receiverIP == NULL || ALGO == NULL) {
-        fprintf(stderr, "Both -ip RECEIVER_IP -p RECEIVER_PORT -algo ALGORITHM are required.\n");
+        fprintf(stderr, "Both -i RECEIVER_IP -p RECEIVER_PORT -a ALGORITHM are required.\n");
         exit(EXIT_FAILURE);
     }
-
+    printf("ALGO: %s\n", ALGO);
     printf("Sender started\n");
 
     printf("Generating random file...\n");
@@ -141,6 +151,8 @@ int main(int argc, char *argv[]) {
         perror("Couldn't connect.");
         exit(EXIT_FAILURE);
     }
+
+    setCongestionControl(socketfd, ALGO);
 
     printf("Connected to %s:%d\n", receiverIP, receiverPort);
 
