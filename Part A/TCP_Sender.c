@@ -81,13 +81,13 @@ int sendData(int socketfd, void *buffer, int len) {
         printf("Receiver not available for accepting requests.\n");
     } else if (sent < len) {
         printf("Not all data sent. Only %d out of %d\n", sent, len);
-    } 
+    }
 
     return sent;
 }
 
 void setCongestionControl(int socketfd, const char *ALGO) {
- if (setsockopt(socketfd, IPPROTO_TCP, TCP_CONGESTION, ALGO, strlen(ALGO)) == -1) {
+    if (setsockopt(socketfd, IPPROTO_TCP, TCP_CONGESTION, ALGO, strlen(ALGO) + 1) == -1) {
         perror("Error setting congestion control algorithm");
         exit(EXIT_FAILURE);
     }
@@ -107,9 +107,6 @@ int main(int argc, char *argv[]) {
     char *receiverIP = NULL;
     int receiverPort = 0;
 
-
-
-
     for (int i = 1; i < argc; i++) {  // Skip argv[0] which is the program name
         if (strcmp(argv[i], "-ip") == 0 && i + 1 < argc) {
             receiverIP = argv[i + 1];
@@ -126,9 +123,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-
     if (receiverPort == 0 || receiverIP == NULL || ALGO == NULL) {
-        fprintf(stderr, "Both -i RECEIVER_IP -p RECEIVER_PORT -a ALGORITHM are required.\n");
+        fprintf(stderr, "Both -ip RECEIVER_IP -p RECEIVER_PORT -a ALGORITHM are required.\n");
         exit(EXIT_FAILURE);
     }
     printf("ALGO: %s\n", ALGO);
@@ -173,7 +169,18 @@ int main(int argc, char *argv[]) {
         remainingBytes -= sentBytes;
     }
 
-    printf("Total Bytes sent: %d\n", totalSentBytes);
+    printf("send again? (1/0)\n");
+
+    int choice;
+    scanf("%d", &choice);
+    int resendSignal = 'y';
+    if (choice == 1) {
+        
+        sendData(socketfd, &resendSignal, sizeof(int));
+    } else if (choice == 0){
+        resendSignal = 'n';
+        sendData(socketfd, &resendSignal, sizeof(int));
+    }
 
     // Cleanup
     close(socketfd);

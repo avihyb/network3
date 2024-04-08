@@ -13,8 +13,7 @@
 #include <string.h>
 #include <errno.h>
 #include <getopt.h>
-#include <unistd.h>
-#include <netinet/tcp.h>
+
 #ifndef TCP_CUBIC
 #define TCP_CUBIC 10
 #endif
@@ -140,30 +139,25 @@ void receiveFile(int clientSocket, int filesize)
 
 int handleSenderResponse(int clientSocket)
 {
-    char response[MAX_BUFFER_SIZE];
-    getData(clientSocket, response, sizeof(response));
+    char response;
+    getData(clientSocket, &response, sizeof(response));
 
-    if (strcmp(response, "exit") == 0)
+    if (response == 'n')
     {
         printf("Received exit message from sender. Closing connection.\n");
         return 0; // Exit the loop
     }
-    else if (strcmp(response, "resend") == 0)
+    else
     {
         printf("Received resend message from sender. Receiving file again.\n");
         return 1; // Continue to receive the file again
-    }
-    else
-    {
-       // printf("Received unknown response from sender: %s\n", response);
-        return 0; // Exit the loop
     }
 }
 
 int main(int argc, char *argv[])
 {
-    
-      struct sockaddr_in serverAddress, clientAddress;
+
+    struct sockaddr_in serverAddress, clientAddress;
     socklen_t clientAddressLen;
     char clientAddr[INET_ADDRSTRLEN];
 
@@ -179,22 +173,28 @@ int main(int argc, char *argv[])
     int totalFilesReceived = 0;
     int receiverPort = 0;
     char *ALGO = NULL;
-    
 
-    for (int i = 1; i < argc; i++) {  // Skip argv[0] which is the program name
-        if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
+    for (int i = 1; i < argc; i++)
+    { // Skip argv[0] which is the program name
+        if (strcmp(argv[i], "-p") == 0 && i + 1 < argc)
+        {
             receiverPort = atoi(argv[i + 1]);
-            i++;  // Skip the value
-        } else if (strcmp(argv[i], "-algo") == 0 && i + 1 < argc) {
+            i++; // Skip the value
+        }
+        else if (strcmp(argv[i], "-algo") == 0 && i + 1 < argc)
+        {
             ALGO = argv[i + 1];
-            i++;  // Skip the value
-        } else {
+            i++; // Skip the value
+        }
+        else
+        {
             printf("Invalid argument: %s\n", argv[i]);
             return 1;
         }
     }
 
-    if (receiverPort == 0 || ALGO == NULL) {
+    if (receiverPort == 0 || ALGO == NULL)
+    {
         fprintf(stderr, "Both -p RECEIVER_PORT -a ALGORITHM are required.\n");
         exit(EXIT_FAILURE);
     }
@@ -220,23 +220,30 @@ int main(int argc, char *argv[])
     printf("Connected to %s:%d\n", clientAddr, clientAddress.sin_port);
 
     // Set congestion control algorithm after the connection is accepted
-    if (strcmp(ALGO, "reno") == 0) {
+    if (strcmp(ALGO, "reno") == 0)
+    {
         const char *ccAlgorithm = "reno";
         printf("CC Algorithm set to: Reno\n");
         // Set the congestion control algorithm using setsockopt
-        if (setsockopt(clientSocket, IPPROTO_TCP, TCP_CONGESTION, ccAlgorithm, strlen(ccAlgorithm) + 1) == -1) {
+        if (setsockopt(clientSocket, IPPROTO_TCP, TCP_CONGESTION, ccAlgorithm, strlen(ccAlgorithm) + 1) == -1)
+        {
             perror("Error setting TCP congestion control algorithm");
             exit(EXIT_FAILURE);
         }
-    } else if (strcmp(ALGO, "cubic") == 0) {
+    }
+    else if (strcmp(ALGO, "cubic") == 0)
+    {
         const char *ccAlgorithm = "cubic";
         printf("CC Algorithm set to: Cubic\n");
         // Set the congestion control algorithm using setsockopt
-        if (setsockopt(clientSocket, IPPROTO_TCP, TCP_CONGESTION, ccAlgorithm, strlen(ccAlgorithm) + 1) == -1) {
+        if (setsockopt(clientSocket, IPPROTO_TCP, TCP_CONGESTION, ccAlgorithm, strlen(ccAlgorithm) + 1) == -1)
+        {
             perror("Error setting TCP congestion control algorithm");
             exit(EXIT_FAILURE);
         }
-    } else {
+    }
+    else
+    {
         printf("Unsupported CC algorithm: %s\n", ALGO);
         exit(EXIT_FAILURE);
     }
@@ -253,11 +260,8 @@ int main(int argc, char *argv[])
         elapsedTime = (endTime.tv_sec - startTime.tv_sec) * 1000.0; // Convert to milliseconds
         elapsedTime += (endTime.tv_usec - startTime.tv_usec) / 1000.0;
 
-        //printf("Time taken to receive file: %.2f milliseconds\n", elapsedTime);
-
         // Calculate and print bandwidth
         double bandwidth = (filesize / 1024.0) / (elapsedTime / 1000.0); // in KB/s
-        //printf("Bandwidth: %.2f KB/s\n", bandwidth);
 
         totalElapsedTime += elapsedTime;
         totalBandwidth += bandwidth;
@@ -286,6 +290,9 @@ int main(int argc, char *argv[])
     close(socketfd);
 
     printf("Receiver end.\n");
+
+    // Free allocated memory for timestamp
+    free(timestamp());
 
     return 0;
 }
